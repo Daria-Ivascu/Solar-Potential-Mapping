@@ -2,13 +2,15 @@ import ee
 import geemap
 
 ee.Authenticate()
-ee.Initialize()
+ee.Initialize(project = 'solar-potential-mapping')
 
-aoi = ee.Geometry.Rectangle([72.5, 18.5, 74.0, 19.5])
+aoi = ee.Geometry.Polygon([
+    [[20.0, 43.5], [29.7, 43.5], [29.7, 48.3], [20.0, 48.3]]
+    ])
 
 s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
       .filterBounds(aoi)
-      .filterDate('2018-01-01', '2023-12-31'))
+      .filterDate('2023-01-01', '2023-12-31'))
 
 def cloud_mask(img):
     scl = img.select('SCL')
@@ -18,7 +20,7 @@ def cloud_mask(img):
 cloud_stack = s2.map(cloud_mask)
 cloud_freq = cloud_stack.mean().clip(aoi).rename('cloud_freq')
 
-dem = ee.Image('COPERNICUS/DEM/GLO30').clip(aoi)
+dem = ee.ImageCollection('COPERNICUS/DEM/GLO30').mosaic().clip(aoi)
 slope = ee.Terrain.slope(dem).rename('slope')
 aspect = ee.Terrain.aspect(dem).rename('aspect')
 
@@ -28,5 +30,17 @@ Map = geemap.Map()
 Map.centerObject(aoi, 9)
 Map.addLayer(cloud_freq, {'min':0, 'max':1, 'palette':['green', 'yellow', 'red']}, 'Cloud Freq')
 
-geemap.ee_export_image(result, filename='gee_export.tif',
-                       scale = 30, region = aoi, file_per_band = True)
+# small_aoi = ee.Geometry.Rectangle([73, 18.9, 73.5, 19.1])
+# geemap.ee_export_image(result, filename='gee_export.tif',
+#                        scale = 30, region = aoi, file_per_band = True)
+
+task = ee.batch.Export.image.toDrive(
+    image = result,
+    description = 'solar_potential',
+    folder = 'GEE_exports',
+    fileNamePrefix = 'gee_export',
+    region = aoi,
+    scale = 30,
+    fileFormat = 'GeoTIFF'
+)
+task.start()
