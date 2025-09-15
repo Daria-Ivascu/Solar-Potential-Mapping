@@ -1,5 +1,6 @@
-import requests
+import requests, os, zipfile
 from getpass import getpass
+from tqdm import tqdm
 
 username = input("CDSE Username: ")
 password = getpass("CDSE Password: ")
@@ -25,7 +26,7 @@ params = {
     "startDate": "2023-01-01T00:00:00Z",
     "completionDate": "2023-12-31T23:59:59Z",
     "geometry": "POLYGON((26 44, 27 44, 27 45, 26 45, 26 44))",
-    "maxRecords": 1,
+    "maxRecords": 100,
     "productType": "S2MSI2A" 
 }
 
@@ -42,18 +43,46 @@ product = results['features'][0]
 title = product['properties']['title']
 product_id = product['id']
 
-# Downloading link for the product
-download_url = f"https://download.dataspace.copernicus.eu/odata/v1/Products({product_id})/$value"
+# Download and extraction for the products
+def download_and_extract(product, headers, directory="downloaded data"):
+    title = product["properties"]["title"]
+    product_id = product["id"]
+    extract_path = os.path.join(directory, title)  
+    zip_file_path = os.path.join(directory, f"{title}.zip")
 
-print("Found product:", title)
-print("Product's download link:", download_url)
+    os.makedirs(directory, exist_ok=True)
 
-# Downloads the data
-r = requests.get(download_url, headers=headers, stream=True)
-r.raise_for_status()
+    # Checks if the .SAFE is already downloaded and downloads the data if not
+    if not os.path.exists(zip_file_path):
+        url = f"https://download.dataspace.copernicus.eu/odata/v1/Products({product_id})/$value"
+        with requests.get(url, headers=headers, stream=True) as r:
+            r.raise_for_status()
+            total_size = int(r.headers.get("Content-Length", 0))
+            with open(zip_file_path, "wb") as f, tqdm(
+                total=total_size, unit="B", unit_scale=True, desc=title, ascii=True) as pbar:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
+                    pbar.update(len(chunk))
 
-with open(f"{title}.zip", "wb") as f:
-    for chunk in r.iter_content(chunk_size=8192):
-        f.write(chunk)
+    # Checks if .SAFE is already downloaded and extracts the data if not
+    if not os.path.exists(extract_path):
+        os.makedirs(extract_path, exist_ok=True)
+        with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+            for member in zip_ref.namelist():
+                parts = member.split("/", 1)
+                member_target = parts[1] if len(parts) > 1 else parts[0]
+                if member_target:
+                    target_path = os.path.join(extract_path, member_target)
+                    if member.endswith("/"):
+                        os.makedirs(target_path, exist_ok=True)
+                    else:
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        with zip_ref.open(member) as src, open(target_path, "wb") as dst:
+                            dst.write(src.read())
 
-print("Check download:", title)
+    print(f"✅ Downloaded and extracted: {title}")
+    return extract_path
+
+# Downloads all the products
+for product in results['features']:
+    download_and_extract(product, headers)
