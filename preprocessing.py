@@ -7,17 +7,15 @@ from tqdm import tqdm
 
 safe_folders = sorted(glob.glob("downloaded data/*.SAFE"))
 
-tile_size = 1000  # dimensiunea tile-urilor 10m
+tile_size = 1000
 
-# Acumulator global pentru cloud fraction
 cloud_sum = None
 count = 0
 
-# Director pentru salvare NDVI intermediar
 os.makedirs("ndvi_tiles", exist_ok=True)
 
 for idx, safe_folder in enumerate(tqdm(safe_folders, desc="Procesăm SAFE files")):
-    # Benzile RED și NIR
+    # RED and NIR bands
     band_paths = sorted(glob.glob(os.path.join(
         safe_folder, "GRANULE", "*", "IMG_DATA", "R10m", "*_10m.jp2"
     )))
@@ -52,14 +50,10 @@ for idx, safe_folder in enumerate(tqdm(safe_folders, desc="Procesăm SAFE files"
 
                 win = rasterio.windows.Window(col_off, row_off, w, h)
 
-                # -------------------------
-                # Citim RED și NIR
                 red = red_src.read(1, window=win).astype(np.float32) / 10000.0
                 nir = nir_src.read(1, window=win).astype(np.float32) / 10000.0
                 ndvi = (nir - red) / (nir + red + 1e-6)
 
-                # -------------------------
-                # Citim SCL 20m și resamplăm la 10m
                 row_off_scl = row_off // 2
                 col_off_scl = col_off // 2
                 h_scl = (h + 1) // 2
@@ -70,26 +64,22 @@ for idx, safe_folder in enumerate(tqdm(safe_folders, desc="Procesăm SAFE files"
                 scl = scl_src.read(
                     1,
                     window=win_scl,
-                    out_shape=(h, w),   # resample la dimensiunea 10m
+                    out_shape=(h, w),   # resample to 10m
                     resampling=Resampling.nearest
                 )
 
                 cloud_mask = np.isin(scl, [3, 8, 9, 10]).astype(np.float32)
 
-                # Salvăm NDVI pe disc pentru median
                 np.save(f"ndvi_tiles/ndvi_{idx}_{ty}_{tx}.npy", ndvi)
 
-                # Adunăm cloud fraction
                 cloud_sum[row_off:row_off + h, col_off:col_off + w] += cloud_mask
 
     count += 1
 
-# -----------------------------
 # Cloud fraction final
 cloud_fraction = cloud_sum / count
 np.save("cloud_fraction.npy", cloud_fraction)
 
-# -----------------------------
 # NDVI median per pixel
 ndvi_median = np.full_like(cloud_fraction, np.nan, dtype=np.float32)
 
@@ -116,5 +106,5 @@ for ty in tqdm(range(tiles_y), desc="Calculăm median NDVI"):
 
 np.save("ndvi_median.npy", ndvi_median)
 
-print("✅ NDVI median salvat ca ndvi_median.npy")
-print("✅ Cloud fraction salvat ca cloud_fraction.npy")
+print("NDVI median saved as ndvi_median.npy")
+print("Cloud fraction saved as cloud_fraction.npy")
