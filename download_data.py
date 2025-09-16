@@ -38,11 +38,6 @@ search_response = requests.get(search_url, params=params, headers=headers)
 search_response.raise_for_status()
 results = search_response.json()
 
-# Extracts produt's ID
-product = results['features'][0]
-title = product['properties']['title']
-product_id = product['id']
-
 # Download and extraction for the products
 def download_and_extract(product, headers, directory="downloaded data"):
     title = product["properties"]["title"]

@@ -1,1 +1,4 @@
 downloaded data
+ndvi_tiles
+*.npy
+*.tif
