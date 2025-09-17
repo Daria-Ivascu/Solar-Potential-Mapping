@@ -54,6 +54,7 @@ for idx, safe_folder in enumerate(tqdm(safe_folders, desc="Procesăm SAFE files"
                 nir = nir_src.read(1, window=win).astype(np.float32) / 10000.0
                 ndvi = (nir - red) / (nir + red + 1e-6)
 
+                # Resample SCL from 20m to 10m resolution to align with NDVI
                 row_off_scl = row_off // 2
                 col_off_scl = col_off // 2
                 h_scl = (h + 1) // 2

@@ -75,7 +75,7 @@ def download_and_extract(product, headers, directory="downloaded data"):
                         with zip_ref.open(member) as src, open(target_path, "wb") as dst:
                             dst.write(src.read())
 
-    print(f"✅ Downloaded and extracted: {title}")
+    print(f"Downloaded and extracted: {title}")
     return extract_path
 
 # Downloads all the products
